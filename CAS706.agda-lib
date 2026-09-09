@@ -1,2 +1,4 @@
 name: CAS706
 include: filled
+depend: 
+    standard-library
