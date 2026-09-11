@@ -1,0 +1,5 @@
+name: Exercises
+include: .
+depend: 
+    CAS706
+    standard-library
