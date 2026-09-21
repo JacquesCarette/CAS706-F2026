@@ -2,3 +2,7 @@ _build/
 *.agdai
 *~
 .DS_Store
+/.envrc
+/.direnv/
+/.dir-locals.el
+/result

@@ -2,3 +2,8 @@ name: CAS706
 include: .
 depend: 
     standard-library
+
+-- We allow unsolved metas to make sure that we don't immediately bail out
+-- when checking unfilled bits.
+flags:
+  --allow-unsolved-metas
