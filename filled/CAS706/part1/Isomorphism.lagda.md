@@ -1,5 +1,4 @@
 ```agda
-{-# OPTIONS --allow-unsolved-metas #-}
 module CAS706.part1.Isomorphism where
 ```
 
@@ -11,6 +10,8 @@ open Eq using (_≡_; refl; cong; cong-app)
 open Eq.≡-Reasoning
 open import Data.Nat.Base using (ℕ; zero; suc; _+_)
 open import Data.Nat.Properties using (+-comm)
+
+open import Level
 ```
 
 ## "variables"
@@ -19,7 +20,8 @@ JC: not in PLFA, but some of this is tedious, so now's a good time
 ```agda
 private
   variable
-    A B C : Set
+    ℓ : Level
+    A B C : Set ℓ
 ```
 
 ## Function composition
@@ -45,17 +47,25 @@ postulate
 Split on n instead:
 ```agda
 _+′_ : ℕ → ℕ → ℕ
-m +′ n = {!!}
+m +′ ℕ.zero = m
+m +′ ℕ.suc n = ℕ.suc (m +′ n)
 ```
 
 ```agda
 same-app : ∀ (m n : ℕ) → m +′ n ≡ m + n
-same-app m n = {!!}
+same-app m n =
+  m +′ n ≡⟨ helper m n ⟩
+  n + m  ≡⟨ +-comm n m ⟩
+  m + n  ∎
+  where
+    helper : ∀ m n → m +′ n ≡ n + m
+    helper m ℕ.zero = refl
+    helper m (ℕ.suc n) = cong ℕ.suc (helper m n)
 ```
 But what about:
 ```agda
 same : _+′_ ≡ _+_
-same = {!!}
+same = extensionality λ m → extensionality λ n → same-app m n
 ```
 
 ```agda
@@ -106,20 +116,46 @@ to∘from′ (mk-≃′ f g g∘f f∘g) = f∘g
 
 ```agda
 ≃-refl : A ≃ A
-≃-refl = {!!}
+≃-refl = mk-≃ (λ x → x) (λ x → x) (λ _ → refl) (λ _ → refl)
+
+≃-refl' : A ≃ A
+≃-refl' = record
+  { to = λ x → x
+  ; from = λ x → x
+  ; to∘from = λ _ → refl
+  ; from∘to = λ _ → refl
+  }
+
+≃-refl'' : A ≃ A
+≃-refl'' .to x = x
+≃-refl'' .from x = x
+≃-refl'' .from∘to _ = refl
+≃-refl'' .to∘from _ = refl
 ```
 (show as record and with constructor and with copatterns)
 
 ```agda
 ≃-sym : A ≃ B → B ≃ A
-≃-sym A≃B = {!!}
+≃-sym A≃B .to = A≃B .from
+≃-sym A≃B .from = A≃B .to
+≃-sym A≃B .from∘to x = A≃B .to∘from x
+≃-sym A≃B .to∘from x = A≃B .from∘to x
 ```
 
 To show isomorphism is transitive, we compose the `to` and `from`
 functions, and use equational reasoning to combine the inverses:
 ```agda
 ≃-trans : A ≃ B → B ≃ C → A ≃ C
-≃-trans A≃B B≃C = {!!}
+≃-trans A≃B B≃C .to a = B≃C .to (A≃B .to a)
+≃-trans A≃B B≃C .from c = A≃B .from (B≃C .from c)
+≃-trans A≃B B≃C .from∘to a =
+  A≃B .from (B≃C .from (B≃C .to (A≃B .to a))) ≡⟨ cong (A≃B .from) (B≃C .from∘to (A≃B .to a)) ⟩
+  A≃B .from (A≃B .to a)                       ≡⟨ A≃B .from∘to a ⟩
+  a ∎
+≃-trans A≃B B≃C .to∘from c =
+  B≃C .to (A≃B .to (A≃B .from (B≃C .from c))) ≡⟨ cong (B≃C .to) (A≃B .to∘from (B≃C .from c)) ⟩
+  B≃C .to (B≃C .from c)                       ≡⟨ B≃C .to∘from c ⟩
+  c                                           ∎
 ```
 
 ## Equational reasoning for isomorphism
@@ -168,7 +204,14 @@ weak form of anti-symmetry:
 ≲-antisym :(A≲B : A ≲ B) → (B≲A : B ≲ A)
   → (to A≲B ≡ from B≲A) → (from A≲B ≡ to B≲A)
   → A ≃ B
-≲-antisym A≲B B≲A to≡from from≡to = {!!}
+≲-antisym A≲B B≲A to≡from from≡to .to = A≲B .to
+≲-antisym A≲B B≲A to≡from from≡to .from = A≲B .from
+≲-antisym A≲B B≲A to≡from from≡to .from∘to = A≲B .from∘to
+≲-antisym {A = A} {B = B} A≲B B≲A to≡from from≡to .to∘from b =
+  A≲B .to (A≲B .from b)     ≡⟨ cong (λ f → f (A≲B .from b)) to≡from ⟩
+  B≲A .from ((A≲B .from) b) ≡⟨ cong (λ f → B≲A .from (f b)) from≡to ⟩
+  B≲A .from ((B≲A .to) b)   ≡⟨ B≲A .from∘to b ⟩
+  b ∎
 ```
 
 ## Equational reasoning for embedding

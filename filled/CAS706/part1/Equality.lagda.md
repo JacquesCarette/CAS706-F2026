@@ -215,21 +215,45 @@ _≐_ {A} x y = ∀ (P : A → Set) → P x → P y
 
 ```agda
 refl-≐ : ∀ {A : Set} {x : A} → x ≐ x
-refl-≐ P Px  =  {!!}
+refl-≐ P Px  =  Px
 
 trans-≐ : ∀ {A : Set} {x y z : A} → x ≐ y → y ≐ z → x ≐ z
-trans-≐ x≐y y≐z P Px  = {!!}
+trans-≐ x≐y y≐z P Px  = y≐z P (x≐y P Px)
 
 -- This one is quite tricky!
 sym-≐ : ∀ {A : Set} {x y : A} → x ≐ y → y ≐ x
-sym-≐ {A} {x} {y} x≐y P  = {!!}
+sym-≐ {A} {x} {y} x≐y P Py =
+  let
+    Q : A → Set
+    Q z = P z → P x
+
+    Qx : Q x
+    Qx Px = Px
+
+    Qy : Q y
+    Qy = x≐y Q Qx
+  in Qy Py
 
 ≡-implies-≐ : ∀ {A : Set} {x y : A} → x ≡ y → x ≐ y
-≡-implies-≐ x≡y P  =  {!!}
+≡-implies-≐ {A} {x} {y} refl P = refl-≐  P
 
 -- need to invent a property again
 ≐-implies-≡ : ∀ {A : Set} {x y : A} → x ≐ y → x ≡ y
-≐-implies-≡ {A} {x} {y} x≐y  = {!!}
+≐-implies-≡ {A} {x} {y} x≐y  = x≐y (λ z → x ≡ z) refl
+
+data Bool : Set where
+  true false : Bool
+
+id₀ : ∀ (A : Set) → A → A
+id₀ A x = x
+
+id₁ : ∀ (A : Set₁) → A → A
+id₁ A x = x
+
+id₂ : ∀ (A : Set₂) → A → A
+id₂ A x = x
+
+
 ```
 
 JC: if this interests you, I can give you more to read.
