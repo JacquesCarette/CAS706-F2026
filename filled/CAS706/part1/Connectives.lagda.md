@@ -15,12 +15,13 @@ _Propositions as Types_:
 
 ```agda
 import Relation.Binary.PropositionalEquality as Eq
-open Eq using (_≡_; refl)
+open Eq using (_≡_; refl; cong)
 open Eq.≡-Reasoning
 open import Data.Nat.Base using (ℕ)
 open import Function.Base using (_∘_)
 
-open import CAS706.part1.Isomorphism using (_≃_; _≲_; extensionality)
+{-# OPTIONS --allow-unsolved-metas #-}
+open import CAS706.part1.Isomorphism using (_≃_; _≲_; extensionality; ≃-trans)
 open CAS706.part1.Isomorphism.≃-Reasoning
 ```
 
@@ -36,12 +37,12 @@ data _×_ (A B : Set) : Set where
     → A × B
 
 proj₁ : ∀ {A B : Set} → A × B → A
-proj₁ ⟨ x , y ⟩ = {!!}
+proj₁ ⟨ x , y ⟩ = x
 proj₂ : ∀ {A B : Set} → A × B → B
-proj₂ ⟨ x , y ⟩ = {!!}
+proj₂ ⟨ x , y ⟩ = y
 
 η-× : ∀ {A B : Set} (w : A × B) → ⟨ proj₁ w , proj₂ w ⟩ ≡ w
-η-× w = {!!}
+η-× ⟨ x , x₁ ⟩ = refl
 
 infixr 2 _×_
 ```
@@ -86,16 +87,25 @@ A "proof" that `Bool × Tri` has 6 members:
 
 ```agda
 ×-comm : ∀ {A B : Set} → A × B ≃ B × A
-×-comm = {!!}
+×-comm ._≃_.to a×b = ⟨ proj₂ a×b , proj₁ a×b ⟩
+×-comm ._≃_.from b×a = ⟨ proj₂ b×a , proj₁ b×a ⟩
+×-comm ._≃_.from∘to a×b = η-× a×b
+×-comm ._≃_.to∘from b×a = η-× b×a
 
 ×-comm′ : ∀ {A B : Set} → A ×′ B ≃ B ×′ A
-×-comm′ = {!!}
+×-comm′ ._≃_.to a×b = ⟨ proj₂′ a×b , proj₁′ a×b ⟩′
+×-comm′ ._≃_.from b×a = ⟨ proj₂′ b×a , proj₁′ b×a ⟩′
+×-comm′ ._≃_.from∘to a×b = refl
+×-comm′ ._≃_.to∘from b×a = refl
 
 ```
 
 ```agda
 ×-assoc : ∀ {A B C : Set} → (A × B) × C ≃ A × (B × C)
 ×-assoc = {!!}
+
+×-assoc′ : ∀ {A B C : Set} → (A ×′ B) ×′ C ≃ A ×′ (B ×′ C)
+×-assoc′ = {!!}
 ```
 
 ## Truth is unit
@@ -104,7 +114,7 @@ A "proof" that `Bool × Tri` has 6 members:
 data ⊤ : Set where  tt : ⊤
 
 η-⊤ : ∀ (w : ⊤) → tt ≡ w
-η-⊤ w = {!!}
+η-⊤ tt = refl
 ```
 
 Alternatively:
@@ -113,7 +123,7 @@ record ⊤′ : Set where
   constructor tt′
 
 η-⊤′ : ∀ (w : ⊤′) → tt′ ≡ w
-η-⊤′ w = {!!} -- not obvious
+η-⊤′ w = refl -- not obvious
 
 truth′ : ⊤′
 truth′ = _
@@ -126,12 +136,21 @@ truth′ = _
 
 ```agda
 ⊤-identityˡ : ∀ {A : Set} → ⊤ × A ≃ A
-⊤-identityˡ = {!!}
+⊤-identityˡ ._≃_.to ⊤×a = proj₂ ⊤×a
+⊤-identityˡ ._≃_.from a = ⟨ tt , a ⟩
+⊤-identityˡ ._≃_.from∘to ⟨ tt , a ⟩ = refl
+⊤-identityˡ ._≃_.to∘from a = refl
 ```
 
 ```agda
 ⊤-identityʳ : ∀ {A : Set} → (A × ⊤) ≃ A
-⊤-identityʳ {A} = {!!} -- can do it equationally!
+⊤-identityʳ {A} =
+  (A × ⊤) ≃⟨ ×-comm ⟩
+  (⊤ × A) ≃⟨ ⊤-identityˡ ⟩
+  A ≃-∎
+  -- (A × ⊤) ≃⟨ ×-comm ⟩
+  -- (⊤ × A) ≃⟨ ⊤-identityˡ ⟩
+  -- A       ≃-∎
 ```
 
 ## Disjunction is sum
@@ -147,18 +166,21 @@ evidence
 Eliminator
 ```agda
 case-⊎ : ∀ {A B C : Set} → (A → C) → (B → C) → A ⊎ B → C
-case-⊎ f g x = {!!}
+case-⊎ f g (inj₁ x) = f x
+case-⊎ f g (inj₂ x) = g x
 ```
 
 ```agda
 η-⊎ : ∀ {A B : Set} (w : A ⊎ B) → case-⊎ inj₁ inj₂ w ≡ w
-η-⊎ x = {!!}
+η-⊎ (inj₁ x) = refl
+η-⊎ (inj₂ x) = refl
 ```
 More generally, we can also throw in an arbitrary function from a disjunction:
 ```agda
 uniq-⊎ : ∀ {A B C : Set} (h : A ⊎ B → C) (w : A ⊎ B) →
   case-⊎ (h ∘ inj₁) (h ∘ inj₂) w ≡ h w
-uniq-⊎ h x = {!!}
+uniq-⊎ h (inj₁ x) = refl
+uniq-⊎ h (inj₂ x) = refl
 
 infixr 1 _⊎_
 ```
@@ -185,21 +207,21 @@ There is no possible evidence that `⊥` holds.
 Dual to `⊤`, for `⊥` there is no introduction rule but an elimination rule.
 ```agda
 ⊥-elim : ∀ {A : Set} → ⊥ → A
-⊥-elim x = {!!}
+⊥-elim ()
 
 uniq-⊥ : ∀ {C : Set} (h : ⊥ → C) (w : ⊥) → ⊥-elim w ≡ h w
-uniq-⊥ h w = {!!}
+uniq-⊥ h ()
 ```
 
 ```agda
 ⊥-count : ⊥ → ℕ
-⊥-count w = {!!}
+⊥-count ()
 ```
 ## Implication is function {#implication}
 
 ```agda
 →-elim : ∀ {A B : Set} → (A → B) → A → B
-→-elim L M = {!!}
+→-elim L M = L M
 ```
 Used to be known as _modus ponens_.
 
@@ -208,7 +230,7 @@ Used to be known as _modus ponens_.
 Elimination followed by introduction is the identity:
 ```agda
 η-→ : ∀ {A B : Set} (f : A → B) → (λ (x : A) → f x) ≡ f
-η-→ f = {!!}
+η-→ f = refl
 ```
 
 ```agda
@@ -235,7 +257,11 @@ we have the isomorphism
 
 ```agda
 currying : ∀ {A B C : Set} → (A → B → C) ≃ (A × B → C)
-currying = {!!}
+currying ._≃_.to f a×b = f (proj₁ a×b) (proj₂ a×b)
+currying ._≃_.from f a b = f ⟨ a , b ⟩
+currying ._≃_.from∘to f = refl
+currying ._≃_.to∘from f = extensionality λ a×b → cong f (η-× a×b)
+-- extensionality λ { ⟨ x , x₁ ⟩ → refl }
 ```
 
 Corresponding to the law
