@@ -79,7 +79,8 @@ pattern [_,_,_,_,_,_] u v w x y z = u ∷ v ∷ w ∷ x ∷ y ∷ z ∷ []
 infixr 5 _++_
 
 _++_ : ∀ {A : Set} → List A → List A → List A
-xs ++ ys = {!!}
+[] ++ ys = ys
+(x ∷ xs) ++ ys = x ∷ (xs ++ ys)
 ```
 
 ## Reasoning about append
@@ -87,22 +88,25 @@ xs ++ ys = {!!}
 ```agda
 ++-assoc : ∀ {A : Set} (xs ys zs : List A)
   → (xs ++ ys) ++ zs ≡ xs ++ (ys ++ zs)
-++-assoc xs ys zs = {!!}
+++-assoc [] ys zs = refl
+++-assoc (x ∷ xs) ys zs = cong (x ∷_) (++-assoc xs ys zs)
 ```
 It is also easy to show that `[]` is a left and right identity for `_++_`.
 ```agda
 ++-identityˡ : ∀ {A : Set} (xs : List A) → [] ++ xs ≡ xs
-++-identityˡ xs = {!!}
+++-identityˡ xs = refl
 
 ++-identityʳ : ∀ {A : Set} (xs : List A) → xs ++ [] ≡ xs
-++-identityʳ xs = {!!}
+++-identityʳ [] = refl
+++-identityʳ (x ∷ xs) = cong (x ∷_) (++-identityʳ xs)
 ```
 
 ## Length
 
 ```agda
 length : ∀ {A : Set} → List A → ℕ
-length xs = {!!}
+length [] = 0
+length (_ ∷ xs) = suc (length xs)
 ```
 
 ## Reasoning about length
@@ -110,14 +114,16 @@ length xs = {!!}
 ```agda
 length-++ : ∀ {A : Set} (xs ys : List A)
   → length (xs ++ ys) ≡ length xs + length ys
-length-++ {A} xs ys = {!!}
+length-++ {A} [] ys = refl
+length-++ {A} (x ∷ xs) ys = cong suc (length-++ xs ys)
 ```
 
 ## Reverse
 
 ```agda
 reverse : ∀ {A : Set} → List A → List A
-reverse xs = {!!}
+reverse [] = []
+reverse (x ∷ xs) = reverse xs ++ [ x ]
 ```
 ```agda
 _ : reverse [ 0 , 1 , 2 ] ≡ [ 2 , 1 , 0 ]
@@ -163,10 +169,15 @@ Shunt is related to reverse as follows:
 ```agda
 shunt-reverse : ∀ {A : Set} (xs ys : List A)
   → shunt xs ys ≡ reverse xs ++ ys
-shunt-reverse xs ys = {!!}
+shunt-reverse [] ys = refl
+shunt-reverse (x ∷ xs) ys = begin
+  shunt xs (x ∷ ys)           ≡⟨ shunt-reverse xs (x ∷ ys) ⟩
+  reverse xs ++ (x ∷ ys)      ≡⟨ refl ⟩ -- this is just true by computation
+  reverse xs ++ ([ x ] ++ ys) ≡⟨ ++-assoc (reverse xs) [ x ] ys ⟨
+  (reverse xs ++ [ x ]) ++ ys ∎
 
 reverse′ : ∀ {A : Set} → List A → List A
-reverse′ xs = shunt xs {!!}
+reverse′ xs = shunt xs []
 ```
 
 Given our previous lemma, it is straightforward to show
@@ -174,7 +185,12 @@ the two definitions equivalent:
 ```agda
 reverses : ∀ {A : Set} (xs : List A)
   → reverse′ xs ≡ reverse xs
-reverses xs = {!!}
+-- reverses [] = refl
+-- reverses (x ∷ xs) = shunt-reverse xs [ x ]
+reverses xs = begin
+  shunt xs []      ≡⟨ shunt-reverse xs [] ⟩
+  reverse xs ++ [] ≡⟨ ++-identityʳ _ ⟩
+  reverse xs ∎
 ```
 
 ```agda

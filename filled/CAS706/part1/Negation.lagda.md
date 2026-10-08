@@ -10,6 +10,7 @@ open import Data.Nat.Base using (ℕ; zero; suc)
 open import Data.Empty using (⊥)
 open import Data.Sum.Base using (_⊎_; inj₁; inj₂)
 open import Data.Product.Base using (_×_)
+open import Function.Base renaming (id to idF) using (_|>_; _∘_; flip)
 open import Relation.Nullary.Negation using (contradiction)
 open import CAS706.part1.Isomorphism using (_≃_; extensionality)
 ```
@@ -23,16 +24,23 @@ open import CAS706.part1.Isomorphism using (_≃_; extensionality)
 If both `¬ A` and `A` hold, then we have a contradiction:
 ```agda
 ¬-elim : ∀ {A : Set} → ¬ A → A → ⊥
-¬-elim ¬a a = {!!}
+¬-elim ¬a a = ¬a a
 
 infix 3 ¬_
+
+¬-elim′ : ∀ {A : Set} → ¬ A → A → ⊥
+¬-elim′ = idF
 ```
 In _classical_ logic, we have that `A` is equivalent to `¬ ¬ A`.
 In _intuitionistic_ logic, where
 we have only half of this equivalence, namely that `A` implies `¬ ¬ A`:
 ```agda
 ¬¬-intro : ∀ {A : Set} → A → ¬ ¬ A
-¬¬-intro a = {!!}
+¬¬-intro a = λ ¬a → ¬-elim ¬a a
+
+¬¬-intro′ : ∀ {A : Set} → A → ¬ ¬ A
+-- ¬¬-intro′ a ¬a = ¬a a
+¬¬-intro′ = _|>_ -- anti-pedagogical version !!!!
 ```
 (do it all on the right, and also half-and-half)
 
@@ -40,10 +48,11 @@ We cannot show that `¬ ¬ A` implies `A`, but we can show that
 `¬ ¬ ¬ A` implies `¬ A`:
 ```agda
 ¬¬¬-elim : ∀ {A : Set} → ¬ ¬ ¬ A → ¬ A
-¬¬¬-elim ¬¬¬a  = {!!}
+¬¬¬-elim ¬¬¬a a = ¬¬¬a (¬¬-intro a)
 
 contraposition : ∀ {A B : Set} → (A → B) → (¬ B → ¬ A)
-contraposition f ¬b a = {!!}
+-- contraposition f ¬b a = ¬b (f a)
+contraposition f ¬b = ¬b ∘ f -- the golf version
 ```
 
 ```agda
@@ -51,10 +60,15 @@ _≢_ : ∀ {A : Set} → A → A → Set
 x ≢ y  =  ¬ (x ≡ y)
 
 _ : 1 ≢ 2
-_ = {!!}
+_ = λ {()}
+
+-- can't do this without a name!!!!
+private
+  test : 1 ≢ 2
+  test ()
 
 peano : ∀ {m : ℕ} → zero ≢ suc m
-peano = {!!}
+peano ()
 ```
 
 Two ways of writing a function on this type
@@ -68,13 +82,13 @@ id′ ()
 But, using extensionality, we can prove these equal:
 ```agda
 id≡id′ : id ≡ id′
-id≡id′ = extensionality (λ())
+id≡id′ = extensionality (λ()) -- apparently 'refl' works too !?!
 ```
 Without extensionality, they are not, but this is not provable inside Agda.
 
 ```agda
 assimilation : ∀ {A : Set} (¬x ¬x′ : ¬ A) → ¬x ≡ ¬x′
-assimilation ¬x ¬x′ = {!!}
+assimilation ¬x ¬x′ = refl -- agda says so with ^C ^A
 ```
 
 ## Intuitive and Classical logic
@@ -94,7 +108,7 @@ meaning that the negation of its negation is provable (and hence that
 its negation is never provable):
 ```agda
 em-irrefutable : ∀ {A : Set} → ¬ ¬ (A ⊎ ¬ A)
-em-irrefutable = {!!}
+em-irrefutable f = f (inj₂ λ a → f (inj₁ a))
 ```
 ## Standard Prelude
 

@@ -1,4 +1,5 @@
 ```agda
+{-# OPTIONS --no-keep-pattern-variables #-}
 module CAS706.part1.Decidable where
 ```
 
@@ -17,10 +18,9 @@ import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl)
 open Eq.≡-Reasoning
 open import Data.Nat.Base using (ℕ; zero; suc; _≤_; s≤s; z≤n)
-open import Data.Product.Base using (_×_) renaming (_,_ to ⟨_,_⟩)
-open import Data.Sum.Base using (_⊎_; inj₁; inj₂)
-open import Relation.Nullary.Negation as Neg using (¬_)
-  renaming (contradiction to ¬¬-intro)
+open import Data.Product.Base using (Σ; _×_) renaming (_,_ to ⟨_,_⟩)
+open import Data.Sum.Base using (_⊎_; inj₁; inj₂; [_,_]′)
+open import Relation.Nullary.Negation as Neg using (¬_; contradiction)
 open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥)
 open import Data.Bool.Base using (Bool; true; false)
@@ -36,6 +36,7 @@ open import CAS706.part1.Relations using (_<_; z<s; s<s)
 
 ¬4≤2 : ¬ (4 ≤ 2)
 ¬4≤2 (s≤s (s≤s ()))
+
 ```
 
 ```agda
@@ -56,22 +57,25 @@ T true   =  ⊤
 T false  =  ⊥
 
 T→≡ : ∀ (b : Bool) → T b → b ≡ true
-T→≡ b Tb = {!!}
+T→≡ true Tb = refl
 
 ≡→T : ∀ {b : Bool} → b ≡ true → T b
-≡→T eq = {!!}
+≡→T refl = _
 ```
 
 `T (m ≤ᵇ n)` is inhabited exactly when `m ≤ n` is inhabited.
 
 ```agda
 ≤ᵇ→≤ : ∀ (m n : ℕ) → T (m ≤ᵇ n) → m ≤ n
-≤ᵇ→≤ m n t = {!!}
+≤ᵇ→≤ zero n t = z≤n
+≤ᵇ→≤ (suc _) zero () -- but Agda doesn't give this if you split manually!
+≤ᵇ→≤ (suc m) (suc n) t = s≤s (≤ᵇ→≤ m n t)
 ```
 
 ```agda
 ≤→≤ᵇ : ∀ {m n : ℕ} → m ≤ n → T (m ≤ᵇ n)
-≤→≤ᵇ m≤n = {!!}
+≤→≤ᵇ z≤n = tt
+≤→≤ᵇ (s≤s m≤n) = ≤→≤ᵇ m≤n
 ```
 
 Why different number of clauses?
@@ -99,11 +103,18 @@ Two easy (by now) lemmas that will be useful:
 ```
 ```agda
 _≤?_ : ∀ (m n : ℕ) → Dec (m ≤ n)
-m ≤? n = {!!}
+zero ≤? n = yes z≤n
+suc m ≤? zero = no ¬s≤z
+suc m ≤? suc n with m ≤? n
+... | yes m≤n = yes (s≤s m≤n)
+... | no ¬m≤n = no (¬s≤s ¬m≤n)
 ```
 
 Can use this to _compute_ the evidence: try `2 ≤? 4` and `4 ≤? 2`
 (with C-c C-n).
+
+_ : Dec (2 ≤ 4)
+_ = {!2 ≤? 4!}
 
 ## Decidables from booleans, and booleans from decidables
 
@@ -130,27 +141,28 @@ Erasure takes a decidable value to a boolean:
 Using erasure, we can easily derive `_≤ᵇ_` from `_≤?_`:
 ```agda
 _≤ᵇ′_ : ℕ → ℕ → Bool
-m ≤ᵇ′ n  = {!!}
+m ≤ᵇ′ n  = ⌊ m ≤? n ⌋
 ```
 
 Further, if `D` is a value of type `Dec A`, then `T ⌊ D ⌋` is
 inhabited exactly when `A` is inhabited:
 ```agda
 toWitness : ∀ {A : Set} {D : Dec A} → T ⌊ D ⌋ → A
-toWitness t = {!!}
+toWitness {D = yes x} _ = x
 
 fromWitness : ∀ {A : Set} {D : Dec A} → A → T ⌊ D ⌋
-fromWitness a = {!!}
+fromWitness {D = yes _} _ = tt
+fromWitness {D = no ¬a} a = contradiction a ¬a
 ```
 
 Using these, we can easily derive that `T (m ≤ᵇ′ n)` is inhabited
 exactly when `m ≤ n` is inhabited:
 ```agda
 ≤ᵇ′→≤ : ∀ {m n : ℕ} → T (m ≤ᵇ′ n) → m ≤ n
-≤ᵇ′→≤  = {!!}
+≤ᵇ′→≤  = toWitness
 
 ≤→≤ᵇ′ : ∀ {m n : ℕ} → m ≤ n → T (m ≤ᵇ′ n)
-≤→≤ᵇ′  = {!!}
+≤→≤ᵇ′  = fromWitness
 ```
 
 In summary, it is usually best to eschew booleans and rely on decidables.
@@ -173,30 +185,39 @@ the answer is the same.
 ```agda
 infixr 6 _×-dec_
 
+-- can either do full case tree, OR mimic the above:
 _×-dec_ : ∀ {A B : Set} → Dec A → Dec B → Dec (A × B)
-dA ×-dec dB = {!!}
+yes a ×-dec yes b = yes ⟨ a , b ⟩
+no ¬a ×-dec _     = no λ { ⟨ a′ , b′ ⟩ → contradiction a′ ¬a}
+_     ×-dec no ¬b = no λ { ⟨ a′ , b′ ⟩ → contradiction b′ ¬b}
 ```
 
 ```agda
 infixr 5 _⊎-dec_
 
 _⊎-dec_ : ∀ {A B : Set} → Dec A → Dec B → Dec (A ⊎ B)
-dA ⊎-dec dB = {!!}
+yes a ⊎-dec _     = yes (inj₁ a)
+no _  ⊎-dec yes b = yes (inj₂ b)
+no ¬a ⊎-dec no ¬b = no [ ¬a , ¬b ]′ -- we eta contracted here
 
 ¬? : ∀ {A : Set} → Dec A → Dec (¬ A)
-¬? dA = {!!}
+¬? (yes a) = no (contradiction a)
+¬? (no ¬a) = yes ¬a
 ```
 
 ```agda
 _→-dec_ : ∀ {A B : Set} → Dec A → Dec B → Dec (A → B)
-dA →-dec dB = {!!}
+yes a →-dec yes b = yes λ _ → b
+yes a →-dec no ¬b = no λ f → contradiction (f a) ¬b
+no ¬a →-dec dB    = yes λ a → contradiction a ¬a 
 ```
 
 ## Proof by reflection {#proof-by-reflection}
 
 ```agda
 minus : (m n : ℕ) (n≤m : n ≤ m) → ℕ
-minus m n n≤m = {!!}
+minus m .0 z≤n = m
+minus (suc m) (suc n) (s≤s n≤m) = minus m n n≤m
 ```
 
 Unfortunately, it is painful to use, since we have to explicitly provide

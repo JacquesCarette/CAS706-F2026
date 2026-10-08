@@ -11,8 +11,12 @@ open import Data.Nat.Base using (ℕ; zero; suc; _+_; _*_)
 open import Relation.Nullary.Negation using (¬_)
 open import Data.Product.Base using (_×_; proj₁; proj₂) renaming (_,_ to ⟨_,_⟩)
 open import Data.Sum.Base using (_⊎_; inj₁; inj₂)
-open import CAS706.part1.Isomorphism using (_≃_; extensionality; ∀-extensionality)
+open import CAS706.part1.Isomorphism using (_≃_; extensionality; ∀-extensionality;
+  ≃-sym)
 open import Function.Base using (_∘_)
+
+-- since we're using copatterns (and the textbook didn't), it is useful to
+open _≃_
 ```
 
 ## Universals
@@ -20,11 +24,12 @@ open import Function.Base using (_∘_)
 ```agda
 ∀-elim : ∀ {A : Set} {B : A → Set} → (L : ∀ (x : A) → B x) → (M : A)
   → B M
-∀-elim L M = {!!}
+∀-elim L M = L M
 ```
 
 ## Existentials
 
+Constructive existential, with evidence:
 ```agda
 record Σ (A : Set) (B : A → Set) : Set where
   constructor ⟨_,_⟩
@@ -44,11 +49,14 @@ syntax ∃-syntax (λ x → B) = ∃[ x ] B
 
 ∃-elim : ∀ {A : Set} {B : A → Set} {C : Set} → (∀ x → B x → C) → ∃[ x ] B x
   → C
-∃-elim f w = {!!}
+∃-elim f ⟨ a , Ba ⟩ = f a Ba
 
 ∀∃-currying : ∀ {A : Set} {B : A → Set} {C : Set}
   → (∀ x → B x → C) ≃ (∃[ x ] B x → C)
-∀∃-currying = {!!}
+∀∃-currying .to = λ { f ⟨ a , Ba ⟩ → f a Ba }
+∀∃-currying .from = λ f a Ba → f ⟨ a , Ba ⟩
+∀∃-currying .from∘to = λ f → refl
+∀∃-currying .to∘from = λ f → refl
 ```
 
 ## An existential example
@@ -64,23 +72,29 @@ Equvalence of two obvious ways of defining even/odd:
 even-∃ : ∀ {n : ℕ} → even n → ∃[ m ] (    m * 2 ≡ n)
 odd-∃  : ∀ {n : ℕ} →  odd n → ∃[ m ] (1 + m * 2 ≡ n)
 
-even-∃ x = {!!}
+even-∃ zero = ⟨ 0 , refl ⟩
+even-∃ (suc odd-n) with ⟨ k , k*2+1≡n ⟩ ← odd-∃ odd-n =
+  ⟨ suc k , Eq.cong suc k*2+1≡n ⟩
 
-odd-∃ x = {!!}
+odd-∃ (suc even-n) with ⟨ k , k*2≡n ⟩ ← even-∃ even-n =
+  ⟨ k , Eq.cong suc k*2≡n ⟩
 
 ∃-even : ∀ {n : ℕ} → ∃[ m ] (    m * 2 ≡ n) → even n
 ∃-odd  : ∀ {n : ℕ} → ∃[ m ] (1 + m * 2 ≡ n) →  odd n
 
-∃-even x = {!!}
+∃-even ⟨ zero , refl ⟩ = zero
+∃-even ⟨ suc m , refl ⟩ = suc (∃-odd ⟨  m , refl ⟩)
 
-∃-odd x = {!!}
+∃-odd ⟨ m , refl ⟩ = suc (∃-even ⟨  m , refl ⟩)
 ```
 
 ## Existentials, Universals, and Negation
 
+We can do this 'directly' but also notice that this is something
+we've seen, ∀∃-currying with C = ⊥
 ```agda
 ¬∃≃∀¬ : ∀ {A : Set} {B : A → Set} → (¬ ∃[ x ] B x) ≃ ∀ x → ¬ B x
-¬∃≃∀¬ = {!!}
+¬∃≃∀¬ = ≃-sym ∀∃-currying
 ```
 
 ## Standard library

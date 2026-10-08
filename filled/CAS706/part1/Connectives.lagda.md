@@ -18,10 +18,10 @@ import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong)
 open Eq.≡-Reasoning
 open import Data.Nat.Base using (ℕ)
-open import Function.Base using (_∘_)
+open import Function.Base using (_∘_; id)
 
-{-# OPTIONS --allow-unsolved-metas #-}
-open import CAS706.part1.Isomorphism using (_≃_; _≲_; extensionality; ≃-trans)
+open import CAS706.part1.Isomorphism
+  using (_≃_; _≲_; extensionality; ≃-trans; mk-≃)
 open CAS706.part1.Isomorphism.≃-Reasoning
 ```
 
@@ -98,14 +98,40 @@ A "proof" that `Bool × Tri` has 6 members:
 ×-comm′ ._≃_.from∘to a×b = refl
 ×-comm′ ._≃_.to∘from b×a = refl
 
+×-swap : ∀ {A B} → A ×′ B → B ×′ A
+×-swap ⟨ a , b ⟩′ = ⟨ b , a  ⟩′
+
+×-comm″ : {A B : Set} → A ×′ B ≃ B ×′ A
+×-comm″ = mk-≃ ×-swap ×-swap η-×′ λ _ → refl
 ```
 
 ```agda
+open _≃_
+
+-- move parens to the right
+×-assocʳ : ∀ {A B C : Set} → (A × B) × C → A × (B × C)
+×-assocʳ ⟨ ⟨ a , b ⟩ , c ⟩ = ⟨ a , ⟨ b , c ⟩ ⟩
+
+×-assocˡ : ∀ {A B C : Set} → A × (B × C) → (A × B) × C
+×-assocˡ ⟨ a , ⟨ b , c ⟩ ⟩ = ⟨ ⟨ a , b ⟩ , c ⟩
+
 ×-assoc : ∀ {A B C : Set} → (A × B) × C ≃ A × (B × C)
-×-assoc = {!!}
+×-assoc .to = ×-assocʳ
+×-assoc .from = ×-assocˡ
+×-assoc .from∘to ⟨ ⟨ _ , _ ⟩ , _ ⟩ = refl
+×-assoc .to∘from ⟨ _ , ⟨ _ , _ ⟩ ⟩ = refl
+
+×-assocʳ′ : ∀ {A B C : Set} → (A ×′ B) ×′ C → A ×′ (B ×′ C)
+×-assocʳ′ ⟨ ⟨ a , b ⟩′ , c ⟩′ = ⟨ a , ⟨ b , c ⟩′ ⟩′
+
+×-assocˡ′ : ∀ {A B C : Set} → A ×′ (B ×′ C) → (A ×′ B) ×′ C
+×-assocˡ′ ⟨ a , ⟨ b , c ⟩′ ⟩′ = ⟨ ⟨ a , b ⟩′ , c ⟩′
 
 ×-assoc′ : ∀ {A B C : Set} → (A ×′ B) ×′ C ≃ A ×′ (B ×′ C)
-×-assoc′ = {!!}
+×-assoc′ .to = ×-assocʳ′
+×-assoc′ .from = ×-assocˡ′
+×-assoc′ .from∘to = λ _ → refl
+×-assoc′ .to∘from = λ _ → refl
 ```
 
 ## Truth is unit
@@ -216,6 +242,9 @@ uniq-⊥ h ()
 ```agda
 ⊥-count : ⊥ → ℕ
 ⊥-count ()
+
+⊥-count′ : ⊥ → ℕ
+⊥-count′ _ = 0
 ```
 ## Implication is function {#implication}
 
@@ -224,6 +253,11 @@ uniq-⊥ h ()
 →-elim L M = L M
 ```
 Used to be known as _modus ponens_.
+
+```agda
+→-elim′ : ∀ {A B : Set} → (A → B) → A → B
+→-elim′ = id
+```
 
 λ is introduction, application is elimination.
 
@@ -253,15 +287,24 @@ Corresponding to the law
 
 we have the isomorphism
 
+    M → (N → P) ≃ (N × M) → P
+
+or
+
     A → (B → C)  ≃  (A × B) → C
 
 ```agda
+curry :  ∀ {A B C : Set} → (A → B → C) → (A × B → C)
+curry f ⟨ a , b ⟩ = f a b
+
+uncurry :  ∀ {A B C : Set} → (A × B → C) → (A → B → C)
+uncurry f a b = f ⟨ a , b ⟩
+
 currying : ∀ {A B C : Set} → (A → B → C) ≃ (A × B → C)
-currying ._≃_.to f a×b = f (proj₁ a×b) (proj₂ a×b)
-currying ._≃_.from f a b = f ⟨ a , b ⟩
+currying ._≃_.to = curry
+currying ._≃_.from = uncurry
 currying ._≃_.from∘to f = refl
-currying ._≃_.to∘from f = extensionality λ a×b → cong f (η-× a×b)
--- extensionality λ { ⟨ x , x₁ ⟩ → refl }
+currying ._≃_.to∘from f = extensionality λ { ⟨ _ , _ ⟩ → refl }
 ```
 
 Corresponding to the law
@@ -273,8 +316,20 @@ we have the isomorphism:
     (A ⊎ B) → C  ≃  (A → C) × (B → C)
 
 ```agda
+case-splits : ∀ {A B C : Set} → (A ⊎ B → C) → ((A → C) × (B → C))
+-- case-splits f = ⟨ (λ a → f (inj₁ a)) , (λ b → f (inj₂ b)) ⟩
+case-splits f = ⟨ f ∘ inj₁ , f ∘ inj₂ ⟩
+
+pair-to-case : ∀ {A B C : Set} → ((A → C) × (B → C)) → (A ⊎ B → C)
+pair-to-case ⟨ f , _ ⟩ (inj₁ a) = f a
+pair-to-case ⟨ _ , g ⟩ (inj₂ b) = g b
+
 →-distrib-⊎ : ∀ {A B C : Set} → (A ⊎ B → C) ≃ ((A → C) × (B → C))
-→-distrib-⊎ = {!!}
+→-distrib-⊎ = mk-≃ case-splits pair-to-case
+  (λ f → extensionality λ { (inj₁ x) → refl
+                          ; (inj₂ x) → refl
+                          })
+  λ { ⟨ _ , _ ⟩ → refl }
 ```
 
 Corresponding to the law
@@ -286,8 +341,16 @@ we have the isomorphism:
     A → B × C  ≃  (A → B) × (A → C)
 
 ```agda
+×-expand : {A B C : Set} → (A → B × C) → (A → B) × (A → C)
+×-expand = λ { f → ⟨ proj₁ ∘ f , proj₂ ∘ f ⟩ }
+
+×-combine : {A B C : Set} → (A → B) × (A → C) → (A → B × C)
+×-combine = λ { ⟨ f , g ⟩ → λ a → ⟨ f a , g a ⟩ }
+
 →-distrib-× : ∀ {A B C : Set} → (A → B × C) ≃ (A → B) × (A → C)
-→-distrib-× = {!!}
+→-distrib-× = mk-≃ ×-expand ×-combine
+  (λ { f → {!refl!} })
+  {!!}
 ```
 
 ## Distribution
@@ -300,7 +363,13 @@ we have the isomorphism:
 Sums do not distribute over products up to isomorphism, but it is an embedding:
 ```agda
 ⊎-distrib-× : ∀ {A B C : Set} → (A × B) ⊎ C ≲ (A ⊎ C) × (B ⊎ C)
-⊎-distrib-× = {!!}
+⊎-distrib-× ._≲_.to (inj₁ a×b) = ⟨ inj₁ (proj₁ a×b) , inj₁ (proj₂ a×b) ⟩
+⊎-distrib-× ._≲_.to (inj₂ c) = ⟨ inj₂ c , inj₂ c ⟩
+⊎-distrib-× ._≲_.from ⟨ inj₁ a , inj₁ b ⟩ = inj₁ ⟨ a , b ⟩
+⊎-distrib-× ._≲_.from ⟨ inj₁ a , inj₂ c ⟩ = inj₂ c
+⊎-distrib-× ._≲_.from ⟨ inj₂ c , _ ⟩ = inj₂ c
+⊎-distrib-× ._≲_.from∘to (inj₁ x) = cong inj₁ (η-× _)
+⊎-distrib-× ._≲_.from∘to (inj₂ x) = refl
 ```
 
 ## Standard library
