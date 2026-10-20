@@ -21,10 +21,10 @@ open import Data.Bool.Base using (Bool; true; false; T; _∧_; _∨_; not)
 open import Data.Nat.Base using (ℕ; zero; suc; _+_; _*_; _∸_; _≤_; s≤s; z≤n)
 open import Data.Nat.Properties using
   (+-assoc; +-identityˡ; +-identityʳ; *-assoc; *-identityˡ; *-identityʳ; *-distribʳ-+)
-open import Relation.Nullary using (¬_; Dec; yes; no)
+open import Relation.Nullary using (¬_; Dec; yes; no; contradiction)
 open import Data.Product.Base using (_×_; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Function.Base using (_∘_)
-open import Function.Bundles using (_⇔_)
+open import Function.Bundles using (_⇔_; mk⇔)
 open import Level using (Level)
 open import CAS706.part1.Isomorphism using (_≃_)
 ```
@@ -217,7 +217,8 @@ Now the time to reverse a list is linear in the length of the list.
 Map applies a function to every element of a list to generate a corresponding list.
 ```agda
 map : ∀ {A B : Set} → (A → B) → List A → List B
-map f xs = {!!}
+map f [] = [] -- forced
+map f (x ∷ xs) = f x ∷ map f xs -- not forced, but this is what we intend
 ```
 
 Here is an example showing how to use map to increment every element of a list:
@@ -255,6 +256,11 @@ _ =
   ∎
 ```
 
+#### Exercise `map-id`
+    map id ≡ id
+  best to prove as
+  ∀ l → map id l ≡ id l
+  (and same below) instead of using funext
 #### Exercise `map-compose` (practice)
     map (g ∘ f) ≡ map g ∘ map f
 #### Exercise `map-++-distribute` (practice)
@@ -287,7 +293,7 @@ _ =
   ∎
 ```
 
-More currying fun:
+More currying fun (but really η-contraction):
 ```agda
 sum : List ℕ → ℕ
 sum = foldr _+_ 0
@@ -297,7 +303,11 @@ _ = refl
 ```
 
 Observe that    foldr _∷_ [] xs ≡ xs
-
+```agda
+reconstruction : {A : Set} (l : List A) → foldr _∷_ [] l ≡ l
+reconstruction [] = refl
+reconstruction (x ∷ l) = cong (x ∷_) (reconstruction l)
+```
 
 ## Monoids
 
@@ -345,7 +355,13 @@ same operator and an arbitrary value:
 ```agda
 foldr-monoid : ∀ {A : Set} (_⊗_ : A → A → A) (e : A) → IsMonoid _⊗_ e →
   ∀ (xs : List A) (y : A) → foldr _⊗_ y xs ≡ foldr _⊗_ e xs ⊗ y
-foldr-monoid isM xs y = {!!}
+foldr-monoid _⊗_ e isM [] y = sym (M.identityˡ y)
+  where module M = IsMonoid isM
+foldr-monoid _⊗_ e isM (x ∷ xs) y = begin
+  (x ⊗ foldr _⊗_ y xs)       ≡⟨ cong (x ⊗_) (foldr-monoid _⊗_ e isM xs y) ⟩
+  (x ⊗ (foldr _⊗_ e xs ⊗ y)) ≡⟨ sym (M.assoc x _ y) ⟩
+  ((x ⊗ foldr _⊗_ e xs) ⊗ y) ∎
+  where module M = IsMonoid isM
 ```
 
 ## All {#All}
@@ -407,22 +423,34 @@ only if it holds for every element of both lists:
 ```agda
 All-++-⇔ : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
   All P (xs ++ ys) ⇔ (All P xs × All P ys)
-All-++-⇔ xs ys = {!!}
+All-++-⇔ xs ys = mk⇔ (to xs ys) (from xs ys)
   where
   to : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
     All P (xs ++ ys) → (All P xs × All P ys)
-  to xs ys all = {!!}
+    -- trying to split on 'all' fails because "[] ≟ xs ++ ys" cannot be inverted
+  to [] ys all = ⟨ [] , all ⟩
+  to (x ∷ xs) ys (Px ∷ all) with ⟨ All-left , All-right ⟩ ← to xs ys all
+    = ⟨ Px ∷ All-left , All-right ⟩
 
   from : ∀ { A : Set} {P : A → Set} (xs ys : List A) →
     All P xs × All P ys → All P (xs ++ ys)
-  from xs ys pall = {!!}
+  from []       ys ⟨ []          , All-ys ⟩ = All-ys
+  from (x ∷ xs) ys ⟨ Px ∷ All-xs , All-ys ⟩ = Px ∷ from xs ys ⟨ All-xs , All-ys ⟩
 ```
 
 ## Decidability of All
 
 ```agda
 all : ∀ {A : Set} → (A → Bool) → List A → Bool
-all p  = {!!}
+-- all p = foldr _∧_ true ∘ map p -- cutest way. But should fuse:
+-- all p = foldr (λ x b → p x ∧ b) true 
+-- but we can go point-free if we like that sort of thing!
+-- η-contract b:
+-- all p = foldr (λ x → p x ∧_) true
+-- flip
+-- all p = foldr (λ x → _∧_ (p x)) true
+-- η-contract x
+all p = foldr (_∧_ ∘ p) true
 ```
 The function can be written in a particularly compact style by
 using the higher-order functions `map` and `foldr`.
@@ -435,7 +463,11 @@ Then if predicate `P` is decidable, it is also decidable whether every
 element of a list satisfies the predicate:
 ```agda
 All? : ∀ {A : Set} {P : A → Set} → Decidable P → Decidable (All P)
-All? P? dP = {!!}
+All? P? [] = yes []
+All? P? (x ∷ xs) with P? x | All? P? xs
+... | yes Px | yes AllPxs = yes (Px ∷ AllPxs)
+... | yes Px | no ¬AllPxs = no λ { (_ ∷ AllPxs) → contradiction AllPxs ¬AllPxs}
+... | no ¬Px | _ = no λ { (Px ∷ AllP) → contradiction Px ¬Px}
 ```
 
 
