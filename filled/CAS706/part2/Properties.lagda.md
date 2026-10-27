@@ -31,12 +31,12 @@ _Preservation_: If `∅ ⊢ M ⦂ A` and `M —→ N` then `∅ ⊢ N ⦂ A`.
 
 ```agda
 V¬—→ : ∀ {M N} → Value M → ¬ (M —→ N)
-V¬—→ v r = {!!}
+V¬—→ (V-suc v) (ξ-suc r) = V¬—→ v r
 ```
 As a corollary, terms that reduce are not values:
 ```agda
 —→¬V : ∀ {M N} → M —→ N → ¬ Value M
-—→¬V M—→N VM  = {!!}
+—→¬V M—→N VM  = V¬—→ VM M—→N
 ```
 
 
@@ -70,7 +70,22 @@ data Progress (M : Term) : Set where
 If a term is well typed in the empty context then it satisfies progress:
 ```agda
 progress : ∀ {M A} → ∅ ⊢ M ⦂ A → Progress M
-progress typ = {!!}
+progress (⊢ƛ typ) = done V-ƛ
+  -- reduction happens on left, so 'with' on that first
+progress (typL · typM) with progress typL
+... | step L→M = step (ξ-·₁ L→M)
+... | done V-ƛ with progress typM
+... | step M→N = step (ξ-·₂ V-ƛ M→N)
+... | done vM = step (β-ƛ vM)
+progress ⊢zero = done V-zero
+progress (⊢suc typ) with progress typ
+... | step x = step (ξ-suc x)
+... | done x = done (V-suc x)
+progress (⊢case typL typM typN) with progress typL
+... | step L→L′ = step (ξ-case L→L′)
+... | done V-zero = step β-zero
+... | done (V-suc x) = step (β-suc x)
+progress (⊢μ typ) = step β-μ
 
 ```
 Our code reads neatly in part because we consider the

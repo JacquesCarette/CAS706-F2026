@@ -366,17 +366,23 @@ deterministic implies diamond and confluence.
 
 ## Examples
 
+(remember that application is left-associative)
 ```agda
 _ : twoᶜ · sucᶜ · `zero —↠ `suc `suc `zero
 _ =
   begin
-    twoᶜ · sucᶜ · `zero  —→⟨ {!!} ⟩
+    (twoᶜ · sucᶜ) · `zero  —→⟨ ξ-·₁ (β-ƛ V-ƛ) ⟩
+    -- (ƛ "z" ⇒ ` "s" · (` "s" · ` "z")) [ "s" := sucᶜ ] · `zero           —→⟨ {!!} ⟩
+    (ƛ "z" ⇒ sucᶜ · (sucᶜ · ` "z")) · `zero —→⟨ β-ƛ V-zero ⟩
+    sucᶜ · (sucᶜ · `zero) —→⟨ ξ-·₂ V-ƛ (β-ƛ V-zero) ⟩
+    sucᶜ · `suc `zero —→⟨ β-ƛ (V-suc V-zero) ⟩
     `suc (`suc `zero)
   ∎
 ```
 
 Here is a sample reduction demonstrating that two plus two is four:
 ```agda
+{-
 _ : plus · two · two —↠ `suc `suc `suc `suc `zero
 _ =
   begin
@@ -384,6 +390,7 @@ _ =
   —→⟨ {!!} ⟩
     `suc (`suc (`suc (`suc `zero)))
   ∎
+-}
 ```
 
 And here is a similar sample reduction for Church numerals:
@@ -599,7 +606,7 @@ Ch : Type → Type
 Ch A = (A ⇒ A) ⇒ A ⇒ A
 
 ⊢twoᶜ : ∀ {Γ A} → Γ ⊢ twoᶜ ⦂ Ch A
-⊢twoᶜ = {!!}
+⊢twoᶜ = ⊢ƛ (⊢ƛ (⊢` ∋s · (⊢` ∋s · ⊢` ∋z)))
   where
   ∋s = S′ Z
   ∋z = Z
@@ -608,10 +615,19 @@ Ch A = (A ⇒ A) ⇒ A ⇒ A
 Here are the typings corresponding to computing two plus two:
 ```agda
 ⊢two : ∀ {Γ} → Γ ⊢ two ⦂ `ℕ
-⊢two = {!!}
+⊢two = ⊢suc (⊢suc ⊢zero)
+```
 
+For ease of remembering:
+plus : Term
+plus = μ "+" ⇒ ƛ "m" ⇒ ƛ "n" ⇒
+         case ` "m"
+           [zero⇒ ` "n"
+           |suc "m" ⇒ `suc (` "+" · ` "m" · ` "n") ] -- shadowing!
+           
+```agda
 ⊢plus : ∀ {Γ} → Γ ⊢ plus ⦂ `ℕ ⇒ `ℕ ⇒ `ℕ
-⊢plus = {!!}
+⊢plus = ⊢μ (⊢ƛ (⊢ƛ (⊢case (⊢` ∋m) (⊢` ∋n) (⊢suc (⊢` ∋+ · ⊢` ∋m′ · ⊢` ∋n′)))))
   where
   ∋+  = S′ (S′ (S′ Z))
   ∋m  = S′ Z
@@ -620,25 +636,26 @@ Here are the typings corresponding to computing two plus two:
   ∋n′ = S′ Z
 
 ⊢2+2 : ∅ ⊢ plus · two · two ⦂ `ℕ
-⊢2+2 = {!!}
+⊢2+2 = ⊢plus · ⊢suc (⊢suc ⊢zero) · ⊢suc (⊢suc ⊢zero)
 ```
 
 ```agda
 ⊢plusᶜ : ∀ {Γ A} → Γ  ⊢ plusᶜ ⦂ Ch A ⇒ Ch A ⇒ Ch A
-⊢plusᶜ = {!!}
+⊢plusᶜ = ⊢ƛ (⊢ƛ (⊢ƛ (⊢ƛ (⊢` ∋m · ⊢` ∋s · ((⊢` ∋n) · ⊢` ∋s · ⊢` ∋z)))))
   where
   ∋m = S′ (S′ (S′ Z))
   ∋n = S′ (S′ Z)
   ∋s = S′ Z
   ∋z = Z
 
+-- tedious, but the next file needs both, so do them anyways!!!!
 ⊢sucᶜ : ∀ {Γ} → Γ ⊢ sucᶜ ⦂ `ℕ ⇒ `ℕ
-⊢sucᶜ = {!!}
+⊢sucᶜ = ⊢ƛ (⊢suc (⊢` ∋n))
   where
   ∋n = Z
 
 ⊢2+2ᶜ : ∅ ⊢ plusᶜ · twoᶜ · twoᶜ · sucᶜ · `zero ⦂ `ℕ
-⊢2+2ᶜ = {!!}
+⊢2+2ᶜ = (((⊢plusᶜ · ⊢twoᶜ) · ⊢twoᶜ) · ⊢sucᶜ ) · ⊢zero
 ```
 
 ### Lookup is functional
@@ -647,7 +664,10 @@ The lookup relation `Γ ∋ x ⦂ A` is functional, in that for each `Γ` and `x
 there is at most one `A` such that the judgment holds:
 ```agda
 ∋-functional : ∀ {Γ x A B} → Γ ∋ x ⦂ A → Γ ∋ x ⦂ B → A ≡ B
-∋-functional xloc₁ xloc₂ = {!!}
+∋-functional Z Z = refl
+∋-functional Z (S x≢x _) = contradiction refl x≢x
+∋-functional (S x≢x _) Z = contradiction refl x≢x
+∋-functional (S _ Γ∋x⦂A) (S _ Γ∋x⦂B) = ∋-functional Γ∋x⦂A Γ∋x⦂B
 ```
 
 The typing relation `Γ ⊢ M ⦂ A` is not functional. For example, in any `Γ`
@@ -657,12 +677,12 @@ the term `` ƛ "x" ⇒ ` "x" `` has type `A ⇒ A` for any type `A`.
 
 ```agda
 nope₁ : ∀ {A} → ¬ (∅ ⊢ `zero · `suc `zero ⦂ A)
-nope₁ t = {!!}
+nope₁ (() · t)
 ```
 
 ```agda
 nope₂ : ∀ {A} → ¬ (∅ ⊢ ƛ "x" ⇒ ` "x" · ` "x" ⦂ A)
-nope₂ t  = {!!}
+nope₂ (⊢ƛ (⊢` x₁ · ⊢` x₂)) = impossible (∋-functional x₁ x₂)
   where
   impossible : ∀ {A B} → ¬ (A ⇒ B ≡ A)
   impossible ()
