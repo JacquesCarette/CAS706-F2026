@@ -163,7 +163,8 @@ ext : ∀ {Γ Δ}
   → (∀ {x A}     →         Γ ∋ x ⦂ A →         Δ ∋ x ⦂ A)
     -----------------------------------------------------
   → (∀ {x y A B} → Γ , y ⦂ B ∋ x ⦂ A → Δ , y ⦂ B ∋ x ⦂ A)
-ext ρ loc = {!!}
+ext ρ Z = Z
+ext ρ (S x≢y Γ∋x) = S x≢y (ρ Γ∋x)
 ```
 
 With the extension lemma under our belts, it is straightforward to
@@ -173,7 +174,13 @@ rename : ∀ {Γ Δ}
   → (∀ {x A} → Γ ∋ x ⦂ A → Δ ∋ x ⦂ A)
     ----------------------------------
   → (∀ {M A} → Γ ⊢ M ⦂ A → Δ ⊢ M ⦂ A)
-rename ρ typ = {!!}
+rename ρ (⊢` Γ∋x) = ⊢` (ρ Γ∋x)
+rename ρ (⊢ƛ typ) = ⊢ƛ (rename (ext ρ) typ)
+rename ρ (typ₀ · typ₁) = rename ρ typ₀ · rename ρ typ₁
+rename ρ ⊢zero = ⊢zero
+rename ρ (⊢suc typ) = ⊢suc (rename ρ typ)
+rename ρ (⊢case typL typM typN) = ⊢case (rename ρ typL) (rename ρ typM) (rename (ext ρ) typN)
+rename ρ (⊢μ typ) = ⊢μ (rename (ext ρ) typ)
 ```
 
 Important corr:
@@ -181,10 +188,10 @@ Important corr:
 First, a closed term can be weakened to any context:
 ```agda
 weaken : ∀ {Γ M A}  → ∅ ⊢ M ⦂ A → Γ ⊢ M ⦂ A
-weaken {Γ} ⊢M = {!!}
+weaken {Γ} ⊢M = rename ρ ⊢M
   where
   ρ : ∀ {z C} → ∅ ∋ z ⦂ C → Γ ∋ z ⦂ C
-  ρ closed = {!!}
+  ρ ()
 ```
 
 ```agda
@@ -192,13 +199,15 @@ drop : ∀ {Γ x M A B C}
   → Γ , x ⦂ A , x ⦂ B ⊢ M ⦂ C
     --------------------------
   → Γ , x ⦂ B ⊢ M ⦂ C
-drop {Γ} {x} {M} {A} {B} {C} ⊢M = {!!}
+drop {Γ} {x} {M} {A} {B} {C} ⊢M = rename ρ ⊢M
   where
   ρ : ∀ {z C}
     → Γ , x ⦂ A , x ⦂ B ∋ z ⦂ C
       -------------------------
     → Γ , x ⦂ B ∋ z ⦂ C
-  ρ loc = {!!}
+  ρ Z = Z
+  ρ (S z≢x Z) = contradiction refl {- x ≡ x -} z≢x
+  ρ (S z≢x (S z≢x loc)) = S z≢x loc -- shift everything else down by 1
 ```
 ```agda
 swap : ∀ {Γ x y M A B C}
@@ -206,13 +215,15 @@ swap : ∀ {Γ x y M A B C}
   → Γ , y ⦂ B , x ⦂ A ⊢ M ⦂ C
     --------------------------
   → Γ , x ⦂ A , y ⦂ B ⊢ M ⦂ C
-swap {Γ} {x} {y} {M} {A} {B} {C} x≢y ⊢M = {!!}
+swap {Γ} {x} {y} {M} {A} {B} {C} x≢y ⊢M = rename ρ ⊢M
   where
   ρ : ∀ {z C}
     → Γ , y ⦂ B , x ⦂ A ∋ z ⦂ C
       --------------------------
     → Γ , x ⦂ A , y ⦂ B ∋ z ⦂ C
-  ρ loc = {!!}
+  ρ Z = S x≢y Z
+  ρ (S z≢x Z) = Z
+  ρ (S z≢x (S z≢y loc)) = S z≢y (S z≢x loc)
 ```
 
 ## Substitution
@@ -226,14 +237,40 @@ subst : ∀ {Γ x N V A B}
   → Γ , x ⦂ A ⊢ N ⦂ B
     --------------------
   → Γ ⊢ N [ x := V ] ⦂ B
-subst {x = y} ⊢V N⦂B = {!!}
+subst {x = x} ⊢V (⊢` {x = y} Γ,x∋y) with y ≟ x -- don't ask x ≟ y, it is the wrong question!!!
+subst {x = x} ⊢V (⊢` {x = _} Z) | yes refl = weaken ⊢V
+subst {x = x} ⊢V (⊢` {x = _} (S x≢x _)) | yes refl = contradiction refl x≢x
+subst {x = x} ⊢V (⊢` {x = _} Z) | no x≢y = contradiction refl x≢y
+subst {x = x} ⊢V (⊢` {x = _} (S _ Γ∋y)) | no y≢x = ⊢` Γ∋y
+subst {x = x} ⊢V (⊢ƛ {x = y} N⦂B) with y ≟ x
+... | yes refl = ⊢ƛ (drop N⦂B)
+... | no ¬y≡x = ⊢ƛ (subst ⊢V (swap ¬y≡x N⦂B))
+subst {x = x} ⊢V (M⦂A⇒B · N⦂A) = subst ⊢V M⦂A⇒B · subst ⊢V N⦂A
+subst {x = x} ⊢V ⊢zero = ⊢zero
+subst {x = x} ⊢V (⊢suc N⦂B) = ⊢suc (subst ⊢V N⦂B)
+subst {x = x} ⊢V (⊢case {x = y} L⦂ℕ M⦂B N⦂B) with y ≟ x
+... | yes refl = ⊢case (subst ⊢V L⦂ℕ) (subst ⊢V M⦂B) (drop N⦂B)
+... | no  y≢x  = ⊢case (subst ⊢V L⦂ℕ) (subst ⊢V M⦂B) (subst ⊢V (swap y≢x N⦂B))
+subst {x = x} ⊢V (⊢μ {x = y} N⦂B) with y ≟ x
+... | yes refl = ⊢μ (drop N⦂B)
+... | no y≢x   = ⊢μ (subst ⊢V (swap y≢x N⦂B))
 ```
 
 ## Preservation
 
 ```agda
 preserve : ∀ {M N A} → ∅ ⊢ M ⦂ A → M —→ N → ∅ ⊢ N ⦂ A
-preserve ⊢M steps = {!!}
+preserve (⊢` x) ()
+preserve (⊢ƛ ⊢M) ()
+preserve (⊢L · ⊢M) (ξ-·₁ steps) = preserve ⊢L steps · ⊢M
+preserve (⊢L · ⊢M) (ξ-·₂ VL steps) = ⊢L · preserve ⊢M steps
+preserve (⊢ƛ ⊢V · ⊢M) (β-ƛ VM) = subst ⊢M ⊢V -- tricky part is to dig into lhs
+preserve ⊢zero ()
+preserve (⊢suc ⊢M) (ξ-suc steps) = ⊢suc (preserve ⊢M steps)
+preserve (⊢case ⊢M ⊢M₁ ⊢M₂) (ξ-case steps) = ⊢case (preserve ⊢M steps) ⊢M₁ ⊢M₂
+preserve (⊢case ⊢M ⊢M₁ ⊢M₂) β-zero = ⊢M₁
+preserve (⊢case (⊢suc ⊢M) ⊢M₁ ⊢M₂) (β-suc VM) = subst ⊢M ⊢M₂
+preserve (⊢μ ⊢M) β-μ = subst (⊢μ ⊢M) ⊢M
 ```
 
 ## Evaluation
@@ -281,7 +318,12 @@ The evaluator takes gas and evidence that a term is well typed,
 and returns the corresponding steps:
 ```agda
 eval : ∀ {L A} → Gas → ∅ ⊢ L ⦂ A → Steps L
-eval {L} g ⊢L = {!!}
+eval {L} (gas zero)         _ = steps (L ∎) out-of-gas
+eval {L} (gas (suc amount)) ⊢L with progress ⊢L
+... | done VL  = steps (L ∎) (done VL)
+... | step {N} L→N with eval {N} (gas amount) (preserve ⊢L L→N)
+... | steps N→N′ (done VN′) = steps (step—→ L N→N′ L→N) (done VN′)
+... | steps N→N′ out-of-gas = steps (step—→ L N→N′ L→N) out-of-gas
 ```
 
 ### Examples
@@ -305,19 +347,30 @@ _ : eval (gas 3) ⊢sucμ ≡
    out-of-gas
 _ = refl
 
-_ : eval (gas 100) (⊢twoᶜ · ⊢sucᶜ · ⊢zero) ≡ {!!}
-_ = {!!}
+_ : eval (gas 100) (⊢twoᶜ · ⊢sucᶜ · ⊢zero) ≡
+  -- use ^C^N with " eval (gas 100) (⊢twoᶜ · ⊢sucᶜ · ⊢zero)" in the hole to get:
+  steps
+  ((ƛ "s" ⇒ (ƛ "z" ⇒ ` "s" · (` "s" · ` "z"))) · (ƛ "n" ⇒ `suc ` "n")
+   · `zero
+   —→⟨ ξ-·₁ (β-ƛ V-ƛ) ⟩
+   (ƛ "z" ⇒ (ƛ "n" ⇒ `suc ` "n") · ((ƛ "n" ⇒ `suc ` "n") · ` "z")) · `zero
+   —→⟨ β-ƛ V-zero ⟩
+   (ƛ "n" ⇒ `suc ` "n") · ((ƛ "n" ⇒ `suc ` "n") · `zero) —→⟨ ξ-·₂ V-ƛ (β-ƛ V-zero) ⟩
+   (ƛ "n" ⇒ `suc ` "n") · `suc `zero —→⟨ β-ƛ (V-suc V-zero) ⟩
+   `suc (`suc `zero) ∎)
+  (done (V-suc (V-suc V-zero)))
+_ = refl
 ```
 
-Next, we show two plus two is four:
+Next, we show two plus two is four (ugly derivation elided)
 ```agda
-_ : eval (gas 100) ⊢2+2 ≡ {!!}
-_ = {!!}
+_ : eval (gas 100) ⊢2+2 ≡ steps _ (done (V-suc (V-suc (V-suc (V-suc V-zero)))))
+_ = refl
 
-_ : eval (gas 100) ⊢2+2ᶜ ≡ {!!}
-_ = {!!}
+_ : eval (gas 100) ⊢2+2ᶜ ≡ steps _ (done (V-suc (V-suc (V-suc (V-suc V-zero)))))
+_ = refl
 ```
-
+The main point is that in both cases, the whole derivation is computed in full!
 
 ## Well-typed terms don't get stuck
 
@@ -376,9 +429,27 @@ cong₄ : ∀ {A B C D E : Set} (f : A → B → C → D → E)
 cong₄ f refl refl refl refl = refl
 ```
 
+Prove that reduction is deterministic. But re-arranged the proof
+so that the 'diagonal' steps are all first, and then all the off-diagonal
+steps are just plain false / impossible.
 ```agda
 det : ∀ {M M′ M″} → (M —→ M′) → (M —→ M″) → M′ ≡ M″
-det st₁ st₂ = {!!}
+det (ξ-·₁ st₁)       (ξ-·₁ st₂)    = cong (_· _) (det st₁ st₂)
+det (ξ-·₂ {V} x st₁) (ξ-·₂ x₁ st₂) = cong (V ·_) (det st₁ st₂)
+det (β-ƛ x)          (β-ƛ x₁)      = refl
+det (ξ-suc st₁)      (ξ-suc st₂)   = cong `suc_ (det st₁ st₂)
+det (ξ-case st₁)     (ξ-case st₂)  = cong₄ case_[zero⇒_|suc_⇒_] (det st₁ st₂) refl refl refl
+det β-zero           β-zero        = refl
+det (β-suc VV)        (β-suc VV′)  = refl
+det β-μ              β-μ           = refl
+
+det (ξ-·₁ st₁)       (ξ-·₂ VL st₂) = contradiction st₁ (V¬—→ VL)
+det (ξ-·₂ x st₁)     (ξ-·₁ st₂)    = contradiction st₂ (V¬—→ x)
+det (ξ-·₂ V-ƛ st₁)   (β-ƛ VM)      = contradiction st₁ (V¬—→ VM) 
+det (β-ƛ VM)         (ξ-·₂ x₁ st₂) = contradiction st₂ (V¬—→ VM)
+det (ξ-case (ξ-suc st₁)) (β-suc x) = contradiction st₁ (V¬—→ x)
+det (β-suc x) (ξ-case (ξ-suc st₂)) = contradiction st₂ (V¬—→ x)
+
 ```
 
 ## Unicode

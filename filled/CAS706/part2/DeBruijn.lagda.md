@@ -1,5 +1,5 @@
 ```agda
-{-# OPTIONS --allow-unsolved-metas #-}
+{-# OPTIONS --no-keep-pattern-variables #-}
 module CAS706.part2.DeBruijn where
 ```
 
@@ -103,16 +103,19 @@ use the derivation _as_ the term
 
 ```agda
 length : Context → ℕ
-length c = ?
+length ∅ = 0
+length (c , _) = suc (length c)
 
 lookup : {Γ : Context} → {n : ℕ} → (p : n < length Γ) → Type
-lookup {Γ} {n} p = ?
+lookup {Γ , x} {zero} (s≤s _) = x
+lookup {Γ , x} {suc n} (s≤s p) = lookup {Γ} {n} p
 ```
 
 Can go in the opposite direction:
 ```agda
 count : ∀ {Γ} → {n : ℕ} → (p : n < length Γ) → Γ ∋ lookup p
-count {Γ} {n} p = ?
+count {Γ , x} {zero} (s≤s p) = Z
+count {Γ , x} {suc n} (s≤s p) = S (count {Γ} {n} p)
 ```
 
 JC: I think using `Fin` would make things even nicer.
@@ -127,8 +130,11 @@ Convenient abbreviation for variables:
 With this abbreviation, we can rewrite the Church numeral two more compactly:
 ```agda
 _ : ∅ ⊢ (`ℕ ⇒ `ℕ) ⇒ `ℕ ⇒ `ℕ
-_ = {!!} -- this is for the Borg... but we'll do this one
+_ = ƛ (ƛ # 1 · (# 1 · # 0)) -- this is for the Borg... but we'll do this one
 ```
+
+In "plain agda"
+two s z = s (s z)
 
 ### Test examples
 We repeat the test examples from Chapter [Lambda](/Lambda/).
@@ -169,16 +175,23 @@ ext : ∀ {Γ Δ}
   → (∀ {A} →       Γ ∋ A →     Δ ∋ A)
     ---------------------------------
   → (∀ {A B} → Γ , B ∋ A → Δ , B ∋ A)
-ext ρ i = {!!}
+ext ρ Z = Z
+ext ρ (S i) = S (ρ i)
 ```
-Now we can remame (as a function, instead of a theorem), using
+Now we can rename (as a function, instead of a theorem), using
 ext when we encounter binders:
 ```agda
 rename : ∀ {Γ Δ}
   → (∀ {A} → Γ ∋ A → Δ ∋ A)
     -----------------------
   → (∀ {A} → Γ ⊢ A → Δ ⊢ A)
-rename ρ trm = {!!}
+rename ρ (` x) = ` ρ x
+rename ρ (ƛ trm) = ƛ rename (ext ρ) trm
+rename ρ (trm₀ · trm₁) = rename ρ trm₀ · rename ρ trm₁
+rename ρ `zero = `zero
+rename ρ (`suc trm) = `suc (rename ρ trm)
+rename ρ (case L M N) = case (rename ρ L) (rename ρ M) (rename (ext ρ) N)
+rename ρ (μ trm) = μ (rename (ext ρ) trm)
 ```
 
 Here is an example of renaming a term with one free
