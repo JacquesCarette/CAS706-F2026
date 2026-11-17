@@ -117,9 +117,10 @@ but only bother to include in the simulation the terms of interest.
 
 ## Simulation commutes with values
 
+-- JC: split on v first? Turns out it doesn't actually matter!
 ```agda
 ~val : ∀ {Γ A} {M M† : Γ ⊢ A} → M ~ M† → Value M → Value M†
-~val rel v = {!!}
+~val (~ƛ rel) V-ƛ = V-ƛ
 ```
 
 ## Simulation commutes with renaming
@@ -152,7 +153,8 @@ then for any `x` in `Γ , B ∋ A` we have `exts σ x ~ exts σ† x`:
   → (∀ {A} → (x : Γ ∋ A) → σ x ~ σ† x)
     --------------------------------------------------
   → (∀ {A B} → (x : Γ , B ∋ A) → exts σ x ~ exts σ† x)
-~exts ~σ loc = {!!}
+~exts ~σ Z = ~`
+~exts ~σ (S loc) = ~rename S_ (~σ loc)
 ```
 
 ```agda
@@ -162,7 +164,10 @@ then for any `x` in `Γ , B ∋ A` we have `exts σ x ~ exts σ† x`:
   → (∀ {A} → (x : Γ ∋ A) → σ x ~ σ† x)
     ---------------------------------------------------------
   → (∀ {A} {M M† : Γ ⊢ A} → M ~ M† → subst σ M ~ subst σ† M†)
-~subst ~σ rel = {!!}
+~subst ~σ ~`              = ~σ _
+~subst ~σ (~ƛ rel)        = ~ƛ ~subst (~exts ~σ) rel
+~subst ~σ (rel ~· rel₁)   = (~subst ~σ rel) ~· (~subst ~σ rel₁)
+~subst ~σ (~let rel rel₁) = ~let (~subst ~σ rel) (~subst (~exts ~σ) rel₁)
 
 ~sub : ∀ {Γ A B} {N N† : Γ , B ⊢ A} {M M† : Γ ⊢ B}
   → N ~ N†
@@ -209,7 +214,17 @@ sim : ∀ {Γ A} {M M† N : Γ ⊢ A}
   → M —→ N
     ---------
   → Leg  M† N
-sim sim stp = {!!}
+sim (sim₁ ~· sim₂) (ξ-·₁ stp)
+  with leg L~N† L→N† ← sim sim₁ stp
+  = leg (L~N† ~· sim₂) (ξ-·₁ L→N†)
+sim (sim₁ ~· sim₂) (ξ-·₂ VL stp)
+  with leg M~N† M→N† ← sim sim₂ stp
+  = leg (sim₁ ~· M~N†) (ξ-·₂ (~val sim₁ VL) M→N†)
+sim ((~ƛ sim₁) ~· sim₂) (β-ƛ VM) = leg (~sub sim₁ sim₂) (β-ƛ (~val sim₂ VM))
+sim (~let sim₁ sim₂) (ξ-let stp)
+  with leg M~N† M→N† ← sim sim₁ stp
+  = leg (~let M~N† sim₂) (ξ-·₂ V-ƛ M→N†)
+sim (~let sim₁ sim₂) (β-let VM) = leg (~sub sim₂ sim₁) (β-ƛ (~val sim₁ VM))
 ```
 ## Unicode
 

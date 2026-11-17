@@ -1,5 +1,5 @@
 ```agda
-{-# OPTIONS --allow-unsolved-metas #-}
+{-# OPTIONS --no-keep-pattern-variables #-}
 module CAS706.part2.More where
 ```
 
@@ -958,7 +958,10 @@ V¬—→ : ∀ {Γ A} {M N : Γ ⊢ A}
   → Value M
     ----------
   → ¬ (M —→ N)
-V¬—→ isV red = {!!}
+  -- meta decision: Value has fewer cases...
+V¬—→ (V-suc isV) (ξ-suc red) = V¬—→ isV red
+V¬—→ V-⟨ isV₀ , isV₁ ⟩ (ξ-⟨,⟩₁ red₀) = V¬—→ isV₀ red₀
+V¬—→ V-⟨ isV₀ , isV₁ ⟩ (ξ-⟨,⟩₂ _ red₁) = V¬—→ isV₁ red₁
 ```
 
 

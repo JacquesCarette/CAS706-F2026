@@ -26,6 +26,8 @@ open Eq using (_≡_; refl)
 open import Data.Nat using (ℕ; zero; suc; _<_; _≤?_; z≤n; s≤s)
 open import Relation.Nullary.Negation using (¬_)
 open import Relation.Nullary.Decidable using (True; toWitness)
+
+open import Function.Base using (case_of_)
 ```
 
 ## Introduction
@@ -237,7 +239,8 @@ exts : ∀ {Γ Δ}
   → (∀ {A} →       Γ ∋ A →     Δ ⊢ A)
     ---------------------------------
   → (∀ {A B} → Γ , B ∋ A → Δ , B ⊢ A)
-exts σ pos = {!!}
+exts σ Z = ` Z
+exts σ (S pos) = rename S_ (σ pos)
 ```
 
 This subst now looks like the old rename!
@@ -262,13 +265,15 @@ variables it is easy to define the special case of
 substitution for one free variable:
 ```agda
 _[_] : ∀ {Γ A B}  → Γ , B ⊢ A → Γ ⊢ B → Γ ⊢ A
-_[_] {Γ} {A} {B} N M =  {!!}
+_[_] {Γ} {A} {B} N M =  subst σ N
   where
   σ : ∀ {A} → Γ , B ∋ A → Γ ⊢ A
-  σ pos = {!!}
+  σ Z = M
+  σ (S pos) = ` pos -- leave the rest of the variables as is, shifted down one
 ```
 
 ```agda
+-- this is often called "twice", but on an open term
 M₂ : ∅ , `ℕ ⇒ `ℕ ⊢ `ℕ ⇒ `ℕ
 M₂ = ƛ # 1 · (# 1 · # 0)
 
@@ -290,15 +295,19 @@ This needs 'renaming' to avoid capture:
 Say the bound `"x"` has type `` `ℕ ⇒ `ℕ ``, the substituted
 `"y"` has type `` `ℕ ``, and the free `"x"` also has type `` `ℕ ⇒ `ℕ ``.
 ```agda
+-- f , x ⊢ λ g → g x
 M₅ : ∅ , `ℕ ⇒ `ℕ , `ℕ ⊢ (`ℕ ⇒ `ℕ) ⇒ `ℕ
-M₅ = ƛ # 0 · # 1
+M₅ = ƛ (# 0 · # 1)
 
+-- f ⊢ f 0
 M₆ : ∅ , `ℕ ⇒ `ℕ ⊢ `ℕ
 M₆ = # 0 · `zero
 
+-- f ⊢ λ g → (g (f 0))
 M₇ : ∅ , `ℕ ⇒ `ℕ ⊢ (`ℕ ⇒ `ℕ) ⇒ `ℕ
 M₇ = ƛ (# 0 · (# 1 · `zero))
 
+-- And this is what substitution actually does!
 _ : M₅ [ M₆ ] ≡ M₇
 _ = refl
 ```
@@ -389,7 +398,7 @@ begin M—↠N = M—↠N
 _ : twoᶜ · sucᶜ · `zero {∅} —↠ `suc `suc `zero
 _ =
   begin
-    twoᶜ · sucᶜ · `zero
+    (twoᶜ · sucᶜ) · `zero
   —→⟨ ξ-·₁ (β-ƛ V-ƛ) ⟩
     (ƛ (sucᶜ · (sucᶜ · # 0))) · `zero
   —→⟨ β-ƛ V-zero ⟩
@@ -450,7 +459,20 @@ data Steps {A} : ∅ ⊢ A → Set where
   steps : {L N : ∅ ⊢ A} → L —↠ N → Finished N → Steps L
 
 eval : ∀ {A} → Gas → (L : ∅ ⊢ A) → Steps L
-eval gs tm = {!!}
+eval (gas zero) tm = steps (tm ∎) out-of-gas
+eval (gas (suc amount)) tm with progress tm
+... | done Vtm = steps (tm ∎) (done Vtm)
+... | step {N} tm→N with eval (gas amount) N
+... | steps N↠N′ (done VN′) = steps (tm —→⟨ tm→N ⟩ N↠N′) (done VN′)
+... | steps N↠N′ out-of-gas = steps (tm —→⟨ tm→N ⟩ N↠N′) out-of-gas
+
+
+eval′ : ∀ {A} → Gas → (L : ∅ ⊢ A) → Steps L
+eval′ (gas zero) tm = steps (tm ∎) out-of-gas
+eval′ (gas (suc amount)) tm = case (progress tm) of
+  λ { (step {N} tm→N) → {!!}
+    ; (done Vtm) → steps (tm ∎) (done Vtm)
+    }
 ```
 
 ## Examples
@@ -481,22 +503,30 @@ _ = refl
 The Church numeral two applied to successor and zero:
 ```agda
 _ : eval (gas 100) (twoᶜ · sucᶜ · `zero) ≡
-  {!!}
-_ = {!!}
+  steps (twoᶜ · sucᶜ · `zero —→⟨ ξ-·₁ (β-ƛ V-ƛ) ⟩
+        (ƛ (ƛ `suc ` Z) · ((ƛ `suc ` Z) · ` Z)) · `zero —→⟨ β-ƛ V-zero ⟩
+         (ƛ `suc ` Z) · ((ƛ `suc ` Z) · `zero) —→⟨ ξ-·₂ V-ƛ (β-ƛ V-zero) ⟩
+         (ƛ `suc ` Z) · `suc `zero —→⟨ β-ƛ (V-suc V-zero) ⟩
+         `suc (`suc `zero) ∎) (done (V-suc (V-suc V-zero)) )
+_ = refl
 ```
 
 Two plus two is four:
 ```agda
+{-
 _ : eval (gas 100) (plus · two · two) ≡
-     {!!}
-_ = {!!}
+     steps _ (done (V-suc (V-suc (V-suc (V-suc V-zero)))))
+_ = refl
+-}
 ```
 
 And the corresponding term for Church numerals:
 ```agda
+{-
 _ : eval (gas 100) (plusᶜ · twoᶜ · twoᶜ · sucᶜ · `zero) ≡
     {!!}
 _ = {!!}
+-}
 ```
 
 We omit the proof that reduction is deterministic, since it is
