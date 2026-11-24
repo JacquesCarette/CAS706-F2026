@@ -289,16 +289,23 @@ The rule for `M ↑` requires the ability to decide whether two types
 are equal.
 ```agda
 _≟Tp_ : (A B : Type) → Dec (A ≡ B)
-t ≟Tp s = {!!}
+`ℕ ≟Tp `ℕ = yes refl
+`ℕ ≟Tp (s ⇒ s₁) = no λ {()}
+(t ⇒ t₁) ≟Tp `ℕ = no λ {()}
+(t₀ ⇒ t₁) ≟Tp (s₀ ⇒ s₁) with t₀ ≟Tp s₀
+... | no  c₀ = no λ { refl → c₀ refl}
+... | yes p₀ with t₁ ≟Tp s₁
+...          | no c₁ = no λ { refl → c₁ refl }
+...          | yes p₁ = yes (cong₂ _⇒_ p₀ p₁)
 
 dom≡ : ∀ {A A′ B B′} → A ⇒ B ≡ A′ ⇒ B′ → A ≡ A′
-dom≡ eq = {!!}
+dom≡ refl = refl
 
 rng≡ : ∀ {A A′ B B′} → A ⇒ B ≡ A′ ⇒ B′ → B ≡ B′
-rng≡ eq = {!!}
+rng≡ refl = refl
 
 ℕ≢⇒ : ∀ {A B} → `ℕ ≢ A ⇒ B
-ℕ≢⇒ eq = {!!}
+ℕ≢⇒ ()
 ```
 
 
@@ -312,9 +319,13 @@ uniq-∋ (S x≢y _) Z         =  contradiction refl x≢y
 uniq-∋ (S _ ∋x) (S _ ∋x′)  =  uniq-∋ ∋x ∋x′
 ```
 
+-- infer always gives you a unique type
 ```agda
 uniq-↑ : ∀ {Γ M A B} → Γ ⊢ M ↑ A → Γ ⊢ M ↑ B → A ≡ B
-uniq-↑ lft rgt = {!!}
+uniq-↑ (⊢` pos₀) (⊢` pos₁) = uniq-∋ pos₀ pos₁
+uniq-↑ (lft · x) (rgt · x₁) with
+  p ← uniq-↑ lft rgt = rng≡ p
+uniq-↑ (⊢↓ _) (⊢↓ _) = refl
 ```
 
 ## Lookup type of a variable in the context
@@ -323,10 +334,16 @@ lemma lets us 'extend' failure all the way.
 ```agda
 ext∋ : ∀ {Γ B x y}  → x ≢ y → ¬ (∃[ A ] Γ ∋ x ⦂ A)
   → ¬ (∃[ A ] Γ , y ⦂ B ∋ x ⦂ A)
-ext∋ x≢y witness  ⟨ A , pos ⟩ = {!!}
+ext∋ x≢y witness ⟨ A , Z ⟩ = contradiction refl x≢y
+ext∋ x≢y witness ⟨ A , S z pos ⟩ = witness ⟨ A , pos ⟩
 
 lookup : ∀ (Γ : Context) (x : Id) → Dec (∃[ A ] Γ ∋ x ⦂ A)
-lookup ctx x = {!!}
+lookup ∅ x = no λ { ⟨ t , () ⟩ }
+lookup (ctx , x₁ ⦂ t₁) x with x ≟ x₁
+... | yes refl = yes ⟨ t₁ , Z ⟩
+... | no x≢x₁  with lookup ctx x
+...            | yes ⟨ t , q ⟩ = yes ⟨ t , S x≢x₁ q ⟩
+...            | no ¬q = no (ext∋ x≢x₁ ¬q)
 ```
 
 ## Promoting negations
@@ -336,14 +353,18 @@ components fails to type, then the whole fails to type. Easy
 most of the time, but still worth pulling out (and a couple are
 tricky).
 
+-- if you can infer L is a function, but that M does not check at that
+-- type, there there is no B where the application will infer
 ```agda
 ¬arg : ∀ {Γ A B L M} → Γ ⊢ L ↑ A ⇒ B → ¬ Γ ⊢ M ↓ A
   → ¬ (∃[ B′ ] Γ ⊢ L · M ↑ B′)
-¬arg ⊢L ¬M↓ ⟨ B′ , ⊢L′ · ⊢M′ ⟩ = {!!}
+¬arg ⊢L ¬M↓ ⟨ _ , ⊢L′ · ⊢M′ ⟩ with
+  refl ← uniq-↑ ⊢L ⊢L′ = contradiction ⊢M′ ¬M↓ 
 
 ¬switch : ∀ {Γ M A B} → Γ ⊢ M ↑ A → A ≢ B
   → ¬ Γ ⊢ (M ↑) ↓ B
-¬switch ⊢M A≢B (⊢↑ ⊢M′ A′≡B) = {!!}
+¬switch ⊢M A≢B (⊢↑ ⊢M′ A′≡B) with
+  refl ← uniq-↑ ⊢M ⊢M′ = contradiction A′≡B A≢B
 ```
 
 ## Synthesize and inherit types
@@ -356,9 +377,49 @@ inherit : ∀ (Γ : Context) (M : Term⁻) (A : Type) → Dec (Γ ⊢ M ↓ A)
 Here we need to carefully synthesize or inherit the pieces, according to
 their 'variance':
 ```agda
-synthesize Γ trm = {!!}
+synthesize Γ (` x) with lookup Γ x
+... | yes ⟨ t , Γ∋x ⟩ = yes ⟨ t , ⊢` Γ∋x ⟩
+... | no  Γ∌x         = no λ { ⟨ _ , ⊢` Γ∋x ⟩ → Γ∌x ⟨ _ , Γ∋x ⟩}
+synthesize Γ (fun · arg) with synthesize Γ fun
+... | no ¬q                   = no λ { ⟨ t , fun↑ · _ ⟩ → ¬q ⟨ _ , fun↑ ⟩}
+... | yes ⟨ `ℕ , fun↑t ⟩      = no λ { ⟨ t , fun↑A⇒B · x ⟩ → ℕ≢⇒ (uniq-↑ fun↑t fun↑A⇒B)}
+... | yes ⟨ s ⇒ t , fun↑s⇒t ⟩ with inherit Γ arg s
+...                           | yes arg↓s = yes ⟨ t , fun↑s⇒t · arg↓s ⟩
+...                           | no ¬q     = no (¬arg fun↑s⇒t ¬q)
+synthesize Γ (trm ↓ t) with inherit Γ trm t
+... | yes p = yes ⟨ t , ⊢↓ p ⟩
+... | no ¬p = no λ { ⟨ t′ , ⊢↓ p ⟩ → contradiction p ¬p}
 
-inherit Γ trm typ = {!!}
+inherit Γ (ƛ x ⇒ trm) `ℕ = no λ {()}
+inherit Γ (ƛ x ⇒ trm) (typ ⇒ typ′) with inherit (Γ , x ⦂ typ) trm typ′
+... | yes p = yes (⊢ƛ p)
+... | no ¬p = no λ { (⊢ƛ q) → contradiction q ¬p}
+inherit Γ `zero `ℕ = yes ⊢zero
+inherit Γ `zero (typ ⇒ typ₁) = no λ {()}
+inherit Γ (`suc trm) `ℕ with inherit Γ trm `ℕ
+... | yes p = yes (⊢suc p)
+... | no ¬p = no λ { (⊢suc q) → contradiction q ¬p}
+inherit Γ (`suc trm) (typ ⇒ typ₁) = no λ {()}
+inherit Γ `case x [zero⇒ trm₀ |suc z ⇒ trm₁ ] A with synthesize Γ x
+... | no  notype = no λ { (⊢case w _ _) → notype ⟨ `ℕ , w ⟩ }
+... | yes ⟨ B , x↑B ⟩
+        with B ≟Tp `ℕ
+...     | no ¬p = no λ { (⊢case w case case₁) → contradiction (uniq-↑ x↑B w) ¬p}
+...     | yes refl
+            with inherit Γ trm₀ A
+...         | no ¬p = no λ { (⊢case _ case _) → contradiction case ¬p}
+...         | yes p
+                with inherit (Γ , z ⦂ `ℕ) trm₁ A
+...             | no ¬q = no λ { (⊢case _ _ w) → contradiction w ¬q}
+...             | yes q = yes (⊢case x↑B p q)
+inherit Γ (μ x ⇒ trm) A with inherit (Γ , x ⦂ A) trm A
+... | no ¬p = no λ { (⊢μ z) → contradiction z ¬p}
+... | yes p = yes (⊢μ p)
+inherit Γ (x ↑) A with synthesize Γ x
+... | no ¬p = no λ { (⊢↑ {A = B} x↑B B≡A) → contradiction ⟨ _ , x↑B ⟩ ¬p}
+... | yes ⟨ B , x↑B ⟩ with B ≟Tp A
+...                   | no ¬p = no (¬switch x↑B ¬p)
+...                   | yes B≡A = yes (⊢↑ x↑B B≡A)
 ```
 
 ## Testing the example terms
@@ -372,7 +433,14 @@ S′ {x≢y = x≢y} x = S (toWitnessFalse x≢y) x
 We confirm that synthesis on the relevant term returns
 natural as the type and the above derivation:
 ```agda
-_ : synthesize ∅ 2+2 ≡ yes ⟨ `ℕ , {!!} ⟩
+_ : synthesize ∅ 2+2 ≡ yes ⟨ `ℕ ,
+  ⊢↓ (⊢μ (⊢ƛ (⊢ƛ
+    (⊢case
+      (⊢` (S′ Z))
+      (⊢↑ (⊢` Z) refl)
+      (⊢suc (⊢↑ (((⊢` (S′ (S′ (S′ Z)))) · ⊢↑ (⊢` Z) refl) · ⊢↑ (⊢` (S′ Z)) refl) refl)))))) ·
+  ⊢suc (⊢suc ⊢zero) ·
+  ⊢suc (⊢suc ⊢zero) ⟩
 _ = refl
 ```
 
